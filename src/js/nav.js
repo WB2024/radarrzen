@@ -92,7 +92,15 @@ const Nav = (() => {
     if (map[code]) {
       const t = e.target;
       const isText = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
-      if (isText && (code === 37 || code === 39)) return;
+      if (isText && (code === 37 || code === 39)) {
+        // Only let LEFT/RIGHT edit the text when the cursor isn't at the
+        // edge — at the boundary we fall through to spatial navigation so
+        // the user can escape the input with the same arrow keys.
+        let pos = 0, len = 0;
+        try { pos = t.selectionStart || 0; len = (t.value || '').length; } catch (e) {}
+        if (code === 37 && pos > 0) return;
+        if (code === 39 && pos < len) return;
+      }
       e.preventDefault();
       move(map[code]);
       return;

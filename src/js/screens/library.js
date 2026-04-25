@@ -137,17 +137,22 @@ const LibraryScreen = (() => {
     const cnt = document.getElementById('movie-count');
     if (cnt) cnt.textContent = items.length + ' movies';
 
+    // Items have changed — discard ALL mounted cards.  Without this, the
+    // recycle pool keeps node-at-index-N showing the OLD movie that used to
+    // be at index N before the sort/filter changed.
+    mounted.forEach((node) => { if (node && node.parentNode) node.parentNode.removeChild(node); });
+    mounted.clear();
+    inner.innerHTML = '';
+
     if (!items.length) {
       inner.style.height = '0px';
-      mounted.clear();
       inner.innerHTML = '<div class="empty-state"><h2>No movies match</h2><p>Try a different filter.</p></div>';
       return;
     }
-    if (inner.querySelector('.empty-state')) inner.innerHTML = '';
 
     layout();
-    // Restore scroll + focus
-    if (Store.state.libraryScrollTop && vp) vp.scrollTop = Store.state.libraryScrollTop;
+    // Restore (or reset) scroll position
+    if (vp) vp.scrollTop = Store.state.libraryScrollTop || 0;
     focusIndex = Math.min(Store.state.libraryFocusIndex || 0, items.length - 1);
     renderWindow();
     setTimeout(() => focusCard(focusIndex), 16);

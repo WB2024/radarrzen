@@ -66,6 +66,9 @@ const SearchScreen = (() => {
 
     const wrap = document.createElement('div');
     wrap.className = 'poster-wrap';
+    // Search uses a static CSS grid — give poster-wrap an explicit height,
+    // otherwise it collapses to 0 and the artwork never appears.
+    wrap.style.height = '300px';
     const ph = document.createElement('div');
     ph.className = 'poster-placeholder';
     ph.textContent = r.title || '';
@@ -157,6 +160,10 @@ const SearchScreen = (() => {
     }
     document.getElementById('add-cancel').addEventListener('click', close);
     document.getElementById('add-confirm').addEventListener('click', async () => {
+      const confirmBtn = document.getElementById('add-confirm');
+      confirmBtn.disabled = true;
+      const origText = confirmBtn.textContent;
+      confirmBtn.textContent = 'Adding…';
       try {
         const body = {
           title: r.title,
@@ -169,12 +176,22 @@ const SearchScreen = (() => {
           addOptions: { searchForMovie: true, monitor: 'movieOnly' },
           images: r.images || [],
         };
-        await RadarrAPI.movies.add(body);
+        const added = await RadarrAPI.movies.add(body);
         Toast.show('Added to library', 'success');
+        // Immediately add the new movie to the in-memory slim cache so the
+        // detail screen can find it without waiting for a library refetch.
+        if (added && added.id) {
+          Store.state.movies.push(Store.slimMovie(added));
+        }
         Store.state.moviesLoadedAt = 0;     // force refetch on next library visit
         close();
+        if (added && added.id) {
+          App.navigate('detail', { movieId: added.id });
+        }
       } catch (e) {
         Toast.show('Add failed: ' + e.message, 'error');
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = origText;
       }
     });
     setTimeout(() => Nav.focus(document.getElementById('add-confirm')), 16);
