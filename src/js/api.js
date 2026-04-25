@@ -46,6 +46,25 @@ const RadarrAPI = (() => {
            (width ? `&w=${width}` : '');
   }
 
+  // Fetch a poster via JS (sends X-Api-Key header, avoids ORB/CORS/auth blocking of <img> tags)
+  // Returns a blob: URL or null on failure. Results are cached.
+  const _blobCache = new Map();
+  async function fetchPoster(posterSrc) {
+    if (_blobCache.has(posterSrc)) return _blobCache.get(posterSrc);
+    try {
+      const res = await fetch(posterSrc, { headers: { 'X-Api-Key': key } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      _blobCache.set(posterSrc, objectUrl);
+      return objectUrl;
+    } catch (e) {
+      console.warn('[RadarrAPI] fetchPoster failed:', posterSrc, e.message);
+      _blobCache.set(posterSrc, null);
+      return null;
+    }
+  }
+
   // ── Movies ──────────────────────────────────────────────────────
   const movies = {
     list:  ()              => request('/movie'),
@@ -97,6 +116,6 @@ const RadarrAPI = (() => {
   return {
     configure, testConnection,
     movies, queue, lookup, quality, rootFolders, system, command,
-    posterUrl, posterUrlFromMovie, rawBase, apiKey,
+    posterUrl, posterUrlFromMovie, fetchPoster, rawBase, apiKey,
   };
 })();

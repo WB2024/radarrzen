@@ -167,7 +167,6 @@ const LibraryScreen = (() => {
     wrap.appendChild(ph);
 
     const img = document.createElement('img');
-    img.loading = 'lazy';
     img.alt = m.title || '';
     img.onload = () => {
       img.style.display = 'block';
@@ -179,7 +178,13 @@ const LibraryScreen = (() => {
       img.style.display = 'none';
     };
     const posterSrc = RadarrAPI.posterUrlFromMovie(m) || RadarrAPI.posterUrl(m.id);
-    img.src = posterSrc;
+    RadarrAPI.fetchPoster(posterSrc).then(blobUrl => {
+      if (blobUrl) {
+        img.src = blobUrl;
+      } else {
+        ph.textContent = m.title || '';
+      }
+    });
     wrap.appendChild(img);
 
     // Status badges
