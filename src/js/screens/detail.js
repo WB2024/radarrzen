@@ -283,8 +283,13 @@ const DetailScreen = (() => {
       body.appendChild(table);
       Nav.invalidateCache();
 
+      // Delay focus to first grab button by 400ms to avoid Tizen key-repeat
+      // firing immediately after the modal opens (user still releasing OK key).
+      // Focus the close button immediately so something is always focused.
       const firstBtn = panel.querySelector('.isr-grab-btn');
-      if (firstBtn) setTimeout(() => Nav.focus(firstBtn), 16);
+      const closeBtn = document.getElementById('isr-close');
+      if (closeBtn) Nav.focus(closeBtn);
+      if (firstBtn) setTimeout(() => Nav.focus(firstBtn), 400);
     }).catch(e => {
       const body = document.getElementById('isr-body');
       if (body) body.innerHTML = '<div class="isr-empty">Search failed: ' + esc(e.message) + '</div>';
