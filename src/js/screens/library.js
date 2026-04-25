@@ -131,12 +131,23 @@ const LibraryScreen = (() => {
     // Render in batches for performance
     const BATCH = 40;
     let i = 0;
+    let firstBatch = true;
     function chunk() {
       const frag = document.createDocumentFragment();
       for (let n = 0; n < BATCH && i < list.length; n++, i++) {
         frag.appendChild(card(list[i]));
       }
       grid.appendChild(frag);
+      if (firstBatch) {
+        firstBatch = false;
+        requestAnimationFrame(() => {
+          const firstCard = grid.querySelector('.movie-card');
+          const firstWrap = firstCard && firstCard.querySelector('.poster-wrap');
+          console.log('[Radarrzen] Card dimensions:', firstCard
+            ? `card=${firstCard.offsetWidth}x${firstCard.offsetHeight} wrap=${firstWrap ? firstWrap.offsetWidth + 'x' + firstWrap.offsetHeight : 'N/A'}`
+            : 'no card found');
+        });
+      }
       if (i < list.length) requestAnimationFrame(chunk);
     }
     chunk();
@@ -158,14 +169,16 @@ const LibraryScreen = (() => {
     const img = document.createElement('img');
     img.loading = 'lazy';
     img.alt = m.title || '';
-    img.style.display = 'none';
-    img.onload = () => { img.style.display = 'block'; ph.style.display = 'none'; };
+    img.onload = () => {
+      img.style.display = 'block';
+      ph.style.display = 'none';
+      console.debug('[Radarrzen] ✓ Poster loaded:', m.title);
+    };
     img.onerror = () => {
-      console.warn('[Radarrzen] Poster failed to load for:', m.title, 'url:', img.src);
-      img.remove();
+      console.warn('[Radarrzen] ✗ Poster FAILED:', m.title, img.src);
+      img.style.display = 'none';
     };
     const posterSrc = RadarrAPI.posterUrlFromMovie(m) || RadarrAPI.posterUrl(m.id);
-    console.debug('[Radarrzen] Poster URL for', m.title, ':', posterSrc);
     img.src = posterSrc;
     wrap.appendChild(img);
 
@@ -193,6 +206,7 @@ const LibraryScreen = (() => {
     el.appendChild(title);
 
     el.addEventListener('click', () => {
+      console.log('[Radarrzen] Card clicked:', m.title, m.id);
       App.navigate('detail', { movieId: m.id });
     });
 
