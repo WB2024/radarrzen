@@ -77,7 +77,15 @@ const SearchScreen = (() => {
       img.style.display = 'none';
       img.onload = () => { img.style.display = 'block'; ph.style.display = 'none'; };
       img.onerror = () => { img.remove(); };
-      img.src = posterUrl;
+      // Use proxy for Radarr-hosted URLs; TMDB remote URLs can be loaded directly
+      const isRadarrUrl = posterUrl.includes(RadarrAPI.rawBase());
+      if (isRadarrUrl) {
+        RadarrAPI.fetchPoster(posterUrl).then(blobUrl => {
+          if (blobUrl) { img.src = blobUrl; } else { img.remove(); }
+        });
+      } else {
+        img.src = posterUrl;
+      }
       wrap.appendChild(img);
     }
 

@@ -63,8 +63,11 @@ const DetailScreen = (() => {
 
     // Poster
     const $img = document.getElementById('d-poster');
-    $img.src = RadarrAPI.posterUrl(m.id, 500);
     $img.onerror = () => { $img.style.display = 'none'; };
+    const posterSrc = RadarrAPI.posterUrlFromMovie(m) || RadarrAPI.posterUrl(m.id, 500);
+    RadarrAPI.fetchPoster(posterSrc).then(blobUrl => {
+      if (blobUrl) { $img.src = blobUrl; } else { $img.style.display = 'none'; }
+    });
 
     // Actions
     document.getElementById('d-search').addEventListener('click', async () => {
