@@ -70,12 +70,7 @@ const DetailScreen = (() => {
     });
 
     // Actions
-    document.getElementById('d-search').addEventListener('click', async () => {
-      try {
-        await RadarrAPI.command.moviesSearch([m.id]);
-        Toast.show('Searching for releases…', 'success');
-      } catch (e) { Toast.show('Search failed: ' + e.message, 'error'); }
-    });
+    document.getElementById('d-search').addEventListener('click', () => interactiveSearch(m));
 
     document.getElementById('d-monitor').addEventListener('click', async () => {
       try {
@@ -144,6 +139,147 @@ const DetailScreen = (() => {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
       { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]
     ));
+  }
+
+  function fmtAge(r) {
+    const h = r.ageHours || (r.age || 0) * 24;
+    if (h < 24) return Math.round(h) + 'h';
+    if (h < 24 * 7) return Math.round(h / 24) + 'd';
+    return Math.round(h / 24 / 7) + 'w';
+  }
+
+  function interactiveSearch(m) {
+    const previousFocus = Nav.current;
+    const root = document.getElementById('modal-root');
+    root.innerHTML = '';
+
+    const back = document.createElement('div');
+    back.className = 'modal-backdrop isr-backdrop';
+    root.appendChild(back);
+
+    const panel = document.createElement('div');
+    panel.className = 'isr-panel';
+    panel.innerHTML = `
+      <div class="isr-header">
+        <span class="isr-title">Interactive Search — ${esc(m.title)}</span>
+        <button class="isr-close btn" data-nav id="isr-close">✕ Close</button>
+      </div>
+      <div class="isr-body" id="isr-body">
+        <div class="isr-loading">Searching indexers…<div class="spinner" style="margin:16px auto 0;"></div></div>
+      </div>
+    `;
+    back.appendChild(panel);
+
+    Nav.setScope(panel);
+    setTimeout(() => Nav.focus(document.getElementById('isr-close')), 20);
+
+    function close() {
+      Nav.clearScope();
+      root.innerHTML = '';
+      if (previousFocus) Nav.focus(previousFocus);
+    }
+    document.getElementById('isr-close').addEventListener('click', close);
+
+    RadarrAPI.release.search(m.id).then(results => {
+      const body = document.getElementById('isr-body');
+      if (!results || !results.length) {
+        body.innerHTML = '<div class="isr-empty">No releases found.</div>';
+        return;
+      }
+
+      // Sort: non-rejected first, then by quality score desc
+      results.sort((a, b) => {
+        if (a.rejected !== b.rejected) return a.rejected ? 1 : -1;
+        return (b.qualityWeight || 0) - (a.qualityWeight || 0);
+      });
+
+      const table = document.createElement('table');
+      table.className = 'isr-table';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Source</th><th>Age</th><th>Title</th>
+            <th>Indexer</th><th>Size</th><th>Peers</th>
+            <th>Quality</th><th></th>
+          </tr>
+        </thead>
+      `;
+      const tbody = document.createElement('tbody');
+
+      results.forEach(r => {
+        const tr = document.createElement('tr');
+        if (r.rejected) tr.className = 'isr-rejected';
+
+        const proto = (r.downloadProtocol || '').toLowerCase();
+        const protoBadge = proto === 'torrent'
+          ? '<span class="isr-proto torrent">TRK</span>'
+          : '<span class="isr-proto nzb">NZB</span>';
+
+        const peers = proto === 'torrent'
+          ? `${r.seeders || 0}/${r.leechers || 0}`
+          : '—';
+
+        const qualName = (r.quality && r.quality.quality && r.quality.quality.name) || '—';
+        const lang = (r.languages && r.languages[0] && r.languages[0].name) || '';
+        const rejectTip = r.rejections && r.rejections.length
+          ? r.rejections.map(x => x.reason || x).join(', ')
+          : '';
+
+        tr.innerHTML = `
+          <td>${protoBadge}</td>
+          <td class="isr-age">${esc(fmtAge(r))}</td>
+          <td class="isr-title-cell" title="${esc(r.title)}">${esc(r.title)}</td>
+          <td class="isr-indexer">${esc(r.indexer || '—')}</td>
+          <td class="isr-size">${esc(fmtBytes(r.size))}</td>
+          <td class="isr-peers">${esc(peers)}</td>
+          <td><span class="isr-quality">${esc(qualName)}</span>${lang ? ` <span class="isr-lang">${esc(lang)}</span>` : ''}</td>
+          <td class="isr-actions"></td>
+        `;
+
+        const actCell = tr.querySelector('.isr-actions');
+
+        if (r.rejected) {
+          const warn = document.createElement('span');
+          warn.className = 'isr-warn';
+          warn.title = rejectTip;
+          warn.textContent = '⚠ Rejected';
+          actCell.appendChild(warn);
+        } else {
+          const grabBtn = document.createElement('button');
+          grabBtn.className = 'btn isr-grab-btn';
+          grabBtn.dataset.nav = '';
+          grabBtn.textContent = '⬇ Grab';
+          grabBtn.addEventListener('click', async () => {
+            grabBtn.disabled = true;
+            grabBtn.textContent = '…';
+            try {
+              await RadarrAPI.release.grab({ guid: r.guid, indexerId: r.indexerId });
+              Toast.show(`Grabbing: ${r.title}`, 'success');
+              grabBtn.textContent = '✓ Grabbed';
+              grabBtn.className = 'btn isr-grab-btn isr-grabbed';
+            } catch (e) {
+              Toast.show('Grab failed: ' + e.message, 'error');
+              grabBtn.disabled = false;
+              grabBtn.textContent = '⬇ Grab';
+            }
+          });
+          actCell.appendChild(grabBtn);
+        }
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      body.innerHTML = '';
+      body.appendChild(table);
+
+      // Focus first grab button
+      const firstBtn = panel.querySelector('.isr-grab-btn');
+      if (firstBtn) setTimeout(() => Nav.focus(firstBtn), 20);
+    }).catch(e => {
+      const body = document.getElementById('isr-body');
+      body.innerHTML = `<div class="isr-empty">Search failed: ${esc(e.message)}</div>`;
+    });
   }
 
   return { render };

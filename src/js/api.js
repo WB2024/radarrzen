@@ -94,6 +94,12 @@ const RadarrAPI = (() => {
     list: () => request('/queue?includeMovie=true&pageSize=100'),
   };
 
+  // ── Releases (interactive search) ────────────────────────────────
+  const release = {
+    search: (movieId) => request(`/release?movieId=${movieId}`),
+    grab:   (body)    => request('/release', { method: 'POST', body: JSON.stringify(body) }),
+  };
+
   // ── Search / Lookup ──────────────────────────────────────────────
   const lookup = {
     search: (term) => request(`/movie/lookup?term=${encodeURIComponent(term)}`),
@@ -128,7 +134,7 @@ const RadarrAPI = (() => {
 
   return {
     configure, testConnection,
-    movies, queue, lookup, quality, rootFolders, system, command,
+    movies, queue, release, lookup, quality, rootFolders, system, command,
     posterUrl, posterUrlFromMovie, fetchPoster, rawBase, apiKey,
   };
 })();
