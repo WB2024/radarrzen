@@ -1,26 +1,29 @@
-// app.js — Router + bootstrap
+// app.js — Router + bootstrap (Tizen-optimized)
 const App = (() => {
   const screens = {
-    setup:   SetupScreen,
-    library: LibraryScreen,
-    detail:  DetailScreen,
-    search:  SearchScreen,
-    queue:   QueueScreen,
+    setup:   typeof SetupScreen   !== 'undefined' ? SetupScreen   : null,
+    library: typeof LibraryScreen !== 'undefined' ? LibraryScreen : null,
+    detail:  typeof DetailScreen  !== 'undefined' ? DetailScreen  : null,
+    search:  typeof SearchScreen  !== 'undefined' ? SearchScreen  : null,
+    queue:   typeof QueueScreen   !== 'undefined' ? QueueScreen   : null,
   };
 
   let currentTeardown = null;
 
-  function navigate(name, params = {}) {
-    if (currentTeardown) { try { currentTeardown(); } catch(e) {} currentTeardown = null; }
+  function navigate(name, params) {
+    params = params || {};
+    if (currentTeardown) { try { currentTeardown(); } catch (e) {} currentTeardown = null; }
     const screen = screens[name];
     if (!screen) { console.error('Unknown screen', name); return; }
     Store.state.currentScreen = name;
     Header.render(name);
     const el = document.getElementById('screen');
     el.innerHTML = '';
+    Nav.invalidateCache();
     screen.render(el, params);
     if (typeof screen.teardown === 'function') currentTeardown = screen.teardown;
-    setTimeout(() => Nav.reset(), 50);
+    // Defer Nav reset so screen DOM is laid out
+    setTimeout(() => Nav.invalidateCache(), 30);
   }
 
   async function loadInitialData() {
@@ -37,12 +40,11 @@ const App = (() => {
   }
 
   async function boot() {
-    // Register Tizen TV keys
     if (window.tizen && window.tizen.tvinputdevice) {
       const KEYS = ['MediaPlayPause','MediaFastForward','MediaRewind',
                     'ColorF0Red','ColorF1Green','ColorF2Yellow','ColorF3Blue',
                     'ChannelUp','ChannelDown'];
-      KEYS.forEach(k => { try { window.tizen.tvinputdevice.registerKey(k); } catch(e) {} });
+      KEYS.forEach(k => { try { window.tizen.tvinputdevice.registerKey(k); } catch (e) {} });
     }
 
     Nav.init();
@@ -51,23 +53,36 @@ const App = (() => {
     const ok = Store.loadConfig();
     if (!ok) { navigate('setup'); return; }
 
-    try {
-      RadarrAPI.configure(Store.state.config.url, Store.state.config.apiKey, Store.state.config.sawsubeUrl);
-      await RadarrAPI.system.status();
-      await loadInitialData();
+    RadarrAPI.configure(Store.state.config.url, Store.state.config.apiKey, Store.state.config.sawsubeUrl);
+
+    // Preload movie cache from localStorage so library renders instantly
+    Store.loadMoviesCache();
+
+    // Skip pre-flight status check when we have cached data — trust + verify in background.
+    // Speeds boot dramatically on Tizen (no waiting on Radarr round-trip).
+    if (Store.state.movies.length > 0) {
       navigate('library');
-    } catch (e) {
-      Toast.show('Cannot reach Radarr — check settings', 'error');
-      navigate('setup');
+      // Background: load profiles/folders + verify connection
+      loadInitialData().catch(() => {});
+      RadarrAPI.system.status().catch(() => {
+        Toast.show('Cannot reach Radarr — check settings', 'error');
+      });
+    } else {
+      try {
+        await RadarrAPI.system.status();
+        await loadInitialData();
+        navigate('library');
+      } catch (e) {
+        Toast.show('Cannot reach Radarr — check settings', 'error');
+        navigate('setup');
+      }
     }
   }
 
   function handleBack() {
-    // If a modal is open, the focus scope handles itself; cancel button equivalent
     const modal = document.querySelector('#modal-root .modal-backdrop');
     if (modal) {
-      // Try to find a Cancel button
-      const cancel = modal.querySelector('[id$="-cancel"]');
+      const cancel = modal.querySelector('[id$="-cancel"]') || modal.querySelector('[id$="-close"]');
       if (cancel) cancel.click();
       else { document.getElementById('modal-root').innerHTML = ''; Nav.clearScope(); }
       return;
@@ -78,8 +93,7 @@ const App = (() => {
       return;
     }
     if (cur === 'library') {
-      // At root — Tizen will exit if not handled. On TV, leave default.
-      try { if (window.tizen && window.tizen.application) window.tizen.application.getCurrentApplication().exit(); } catch(e) {}
+      try { if (window.tizen && window.tizen.application) window.tizen.application.getCurrentApplication().exit(); } catch (e) {}
     }
   }
 

@@ -1,6 +1,8 @@
-# Build outputs
-*.wgt
+# Build outputs — intermediate WGTs only.
+# The root Radarrzen.wgt IS committed (it's the release artifact for SAWSUBE / users).
 src/*.wgt
+*_signed.wgt
+src/.buildResult/
 
 # Editor / OS junk
 .DS_Store
@@ -15,3 +17,6 @@ src/*.wgt
 .sign/
 author-signature.xml
 signature1.xml
+src/.manifest.tmp
+src/author-signature.xml
+src/signature1.xml

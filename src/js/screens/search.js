@@ -1,21 +1,18 @@
-// screens/search.js — Search TMDB / add movie
+// screens/search.js — Search TMDB / add movie (Tizen-optimized)
 const SearchScreen = (() => {
   let debounceTimer = null;
   let lastQuery = '';
-  let openOverlay = null;
 
   function render(host) {
     host.innerHTML = '';
     const wrap = document.createElement('div');
     wrap.className = 'search-wrap';
-    wrap.innerHTML = `
-      <div class="search-bar">
-        <input id="s-input" class="input" type="text" data-nav
-               placeholder="Search for a movie title…">
-      </div>
-      <div id="s-status" class="search-status">Type a movie title to search.</div>
-      <div id="s-results" class="search-results movie-grid" style="display:none;"></div>
-    `;
+    wrap.innerHTML =
+      '<div class="search-bar">' +
+        '<input id="s-input" class="input" type="text" data-nav placeholder="Search for a movie title…">' +
+      '</div>' +
+      '<div id="s-status" class="search-status">Type a movie title to search.</div>' +
+      '<div id="s-results" class="search-results movie-grid-static" style="display:none;"></div>';
     host.appendChild(wrap);
 
     const $in = document.getElementById('s-input');
@@ -31,7 +28,7 @@ const SearchScreen = (() => {
       debounceTimer = setTimeout(() => doSearch(q), 600);
     });
 
-    setTimeout(() => Nav.focus($in), 30);
+    setTimeout(() => Nav.focus($in), 16);
   }
 
   async function doSearch(q) {
@@ -51,7 +48,11 @@ const SearchScreen = (() => {
       $st.style.display = 'none';
       $res.style.display = 'grid';
       $res.innerHTML = '';
-      results.slice(0, 60).forEach(r => $res.appendChild(card(r)));
+      const cap = results.slice(0, 40);   // cap for perf
+      const frag = document.createDocumentFragment();
+      cap.forEach(r => frag.appendChild(card(r)));
+      $res.appendChild(frag);
+      Nav.invalidateCache();
     } catch (e) {
       $st.textContent = 'Search failed: ' + e.message;
     }
@@ -73,18 +74,17 @@ const SearchScreen = (() => {
     const posterUrl = pickImage(r, 'poster');
     if (posterUrl) {
       const img = document.createElement('img');
-      img.alt = r.title || '';
-      img.onload = () => { ph.style.display = 'none'; };
+      img.alt = '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.style.opacity = '0';
+      img.onload = () => { img.style.opacity = '1'; ph.style.display = 'none'; };
       img.onerror = () => { img.remove(); };
-      // Use proxy for Radarr-hosted URLs; TMDB remote URLs can be loaded directly
-      const isRadarrUrl = posterUrl.includes(RadarrAPI.rawBase());
-      if (isRadarrUrl) {
-        RadarrAPI.fetchPoster(posterUrl).then(blobUrl => {
-          if (blobUrl) { img.src = blobUrl; } else { img.remove(); }
-        });
-      } else {
-        img.src = posterUrl;
-      }
+      // Always proxy through SAWSUBE for resize + cache (TMDB images can be huge)
+      const isRadarrUrl = posterUrl.indexOf(RadarrAPI.rawBase()) === 0;
+      img.src = isRadarrUrl
+        ? RadarrAPI.posterImgSrc({ id: r.tmdbId || 0, posterUrl: posterUrl }, 200)
+        : RadarrAPI.remoteImgSrc(posterUrl, 200);
       wrap.appendChild(img);
     }
 
@@ -98,7 +98,7 @@ const SearchScreen = (() => {
     el.appendChild(wrap);
     const t = document.createElement('div');
     t.className = 'title';
-    t.textContent = r.year ? `${r.title} (${r.year})` : r.title;
+    t.textContent = r.year ? (r.title + ' (' + r.year + ')') : r.title;
     el.appendChild(t);
 
     el.addEventListener('click', () => {
@@ -124,29 +124,21 @@ const SearchScreen = (() => {
 
     const back = document.createElement('div');
     back.className = 'modal-backdrop';
-    back.innerHTML = `
-      <div class="modal" style="min-width:600px;">
-        <h2>Add ${esc(r.title)} ${r.year ? `(${r.year})` : ''}</h2>
-        <p style="color:var(--muted);max-height:140px;overflow:auto;">${esc(r.overview || '')}</p>
-        <div class="field">
-          <label>Quality Profile</label>
-          <div id="qp-dd" class="dropdown"></div>
-        </div>
-        <div class="field">
-          <label>Root Folder</label>
-          <div id="rf-dd" class="dropdown"></div>
-        </div>
-        <div class="modal-actions">
-          <button class="btn" data-nav id="add-cancel">Cancel</button>
-          <button class="btn btn-primary" data-nav id="add-confirm">+ Add Movie</button>
-        </div>
-      </div>
-    `;
+    back.innerHTML =
+      '<div class="modal" style="min-width:600px;">' +
+        '<h2>Add ' + esc(r.title) + (r.year ? (' (' + r.year + ')') : '') + '</h2>' +
+        '<p style="color:var(--muted);max-height:140px;overflow:auto;">' + esc(r.overview || '') + '</p>' +
+        '<div class="field"><label>Quality Profile</label><div id="qp-dd" class="dropdown"></div></div>' +
+        '<div class="field"><label>Root Folder</label><div id="rf-dd" class="dropdown"></div></div>' +
+        '<div class="modal-actions">' +
+          '<button class="btn" data-nav id="add-cancel">Cancel</button>' +
+          '<button class="btn btn-primary" data-nav id="add-confirm">+ Add Movie</button>' +
+        '</div>' +
+      '</div>';
     root.appendChild(back);
 
     const modal = back.querySelector('.modal');
     Nav.setScope(modal);
-    openOverlay = back;
 
     const state = {
       profileId: profiles[0] && profiles[0].id,
@@ -161,7 +153,6 @@ const SearchScreen = (() => {
     function close() {
       Nav.clearScope();
       root.innerHTML = '';
-      openOverlay = null;
       if (previousFocus) Nav.focus(previousFocus);
     }
     document.getElementById('add-cancel').addEventListener('click', close);
@@ -180,15 +171,13 @@ const SearchScreen = (() => {
         };
         await RadarrAPI.movies.add(body);
         Toast.show('Added to library', 'success');
-        // Invalidate cached movies
-        Store.state.moviesLoadedAt = 0;
+        Store.state.moviesLoadedAt = 0;     // force refetch on next library visit
         close();
       } catch (e) {
         Toast.show('Add failed: ' + e.message, 'error');
       }
     });
-
-    setTimeout(() => Nav.focus(document.getElementById('add-confirm')), 20);
+    setTimeout(() => Nav.focus(document.getElementById('add-confirm')), 16);
   }
 
   function buildPickerDropdown(hostId, items, selectedId, onPick) {
@@ -217,11 +206,13 @@ const SearchScreen = (() => {
           onPick(it.id);
           btn.textContent = it.label + ' ▾';
           menu.remove(); menu = null;
+          Nav.invalidateCache();
           Nav.focus(btn);
         });
         menu.appendChild(o);
       });
       host.appendChild(menu);
+      Nav.invalidateCache();
       setTimeout(() => Nav.focus(menu.querySelector('.dropdown-item')), 10);
     });
   }
