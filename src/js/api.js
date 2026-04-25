@@ -63,8 +63,14 @@ const RadarrAPI = (() => {
     }
     const raw = posterUrlFromMovie(movie) || posterUrl(movie.id);
     const radarrOrigin = rawBase();
-    const pathPart = raw.indexOf(radarrOrigin) === 0 ? raw.slice(radarrOrigin.length) : raw;
-    return sawsubeBase + '/api/radarr/image?path=' + encodeURIComponent(pathPart) + '&w=' + w;
+    if (raw.indexOf(radarrOrigin) === 0) {
+      // Radarr-hosted image — use ?path= so the proxy attaches the API key.
+      const pathPart = raw.slice(radarrOrigin.length);
+      return sawsubeBase + '/api/radarr/image?path=' + encodeURIComponent(pathPart) + '&w=' + w;
+    }
+    // External URL (TMDB etc., common for just-added movies before Radarr
+    // caches the cover locally) — use the whitelisted ?url= proxy.
+    return sawsubeBase + '/api/radarr/image?url=' + encodeURIComponent(raw) + '&w=' + w;
   }
 
   // Proxy any remote image (e.g. TMDB) for resize + cache.

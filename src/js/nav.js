@@ -90,18 +90,18 @@ const Nav = (() => {
     const code = e.keyCode;
     const map = { 38: 'up', 40: 'down', 37: 'left', 39: 'right' };
     if (map[code]) {
-      const t = e.target;
-      const isText = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
-      if (isText && (code === 37 || code === 39)) {
-        // Only let LEFT/RIGHT edit the text when the cursor isn't at the
-        // edge — at the boundary we fall through to spatial navigation so
-        // the user can escape the input with the same arrow keys.
-        let pos = 0, len = 0;
-        try { pos = t.selectionStart || 0; len = (t.value || '').length; } catch (e) {}
-        if (code === 37 && pos > 0) return;
-        if (code === 39 && pos < len) return;
-      }
+      // Tizen TV: arrow keys ALWAYS do spatial navigation, even when an
+      // <input> is focused.  The on-screen IME owns text editing entirely;
+      // letting LEFT/RIGHT move the caret would trap users in the input
+      // (every press would step through characters before escaping).
       e.preventDefault();
+      e.stopPropagation();
+      // Make sure the input doesn't keep its caret blinking off-screen and
+      // doesn't capture subsequent character keys when we navigate away.
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) {
+        try { t.blur(); } catch (e) {}
+      }
       move(map[code]);
       return;
     }
