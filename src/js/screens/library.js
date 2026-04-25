@@ -160,8 +160,13 @@ const LibraryScreen = (() => {
     img.alt = m.title || '';
     img.style.display = 'none';
     img.onload = () => { img.style.display = 'block'; ph.style.display = 'none'; };
-    img.onerror = () => { img.remove(); };
-    img.src = RadarrAPI.posterUrl(m.id, 250);
+    img.onerror = () => {
+      console.warn('[Radarrzen] Poster failed to load for:', m.title, 'url:', img.src);
+      img.remove();
+    };
+    const posterSrc = RadarrAPI.posterUrlFromMovie(m) || RadarrAPI.posterUrl(m.id);
+    console.debug('[Radarrzen] Poster URL for', m.title, ':', posterSrc);
+    img.src = posterSrc;
     wrap.appendChild(img);
 
     // Status badges

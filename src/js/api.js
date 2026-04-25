@@ -30,10 +30,20 @@ const RadarrAPI = (() => {
     return ct.includes('json') ? res.json() : res.text();
   }
 
-  // Build a poster URL using cached config
+  // Build a poster URL from the movie object's images array (preferred — uses Radarr's own URL)
+  function posterUrlFromMovie(movie) {
+    const img = (movie.images || []).find(i => i.coverType === 'poster');
+    if (!img || !img.url) return null;
+    // Radarr returns relative paths like /MediaCover/1/poster.jpg?lastWrite=...
+    const path = img.url.startsWith('http') ? img.url : rawBase() + img.url;
+    // Append apikey if not already present
+    return path + (path.includes('apikey=') ? '' : `${path.includes('?') ? '&' : '?'}apikey=${encodeURIComponent(key)}`);
+  }
+
+  // Fallback: build poster URL directly by movie ID (correct Radarr v3 path)
   function posterUrl(movieId, width = 250) {
-    return `${rawBase()}/api/v3/mediacover/${movieId}/poster.jpg?apikey=${encodeURIComponent(key)}` +
-           (width ? `&width=${width}` : '');
+    return `${rawBase()}/MediaCover/${movieId}/poster.jpg?apikey=${encodeURIComponent(key)}` +
+           (width ? `&w=${width}` : '');
   }
 
   // ── Movies ──────────────────────────────────────────────────────
@@ -87,6 +97,6 @@ const RadarrAPI = (() => {
   return {
     configure, testConnection,
     movies, queue, lookup, quality, rootFolders, system, command,
-    posterUrl, rawBase, apiKey,
+    posterUrl, posterUrlFromMovie, rawBase, apiKey,
   };
 })();
