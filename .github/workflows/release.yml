@@ -44,6 +44,11 @@ jobs:
             -d "$HOME/tizen-studio/tools/certificate-generator/certificates/distributor/tizen-distributor-signer.p12" \
             -dp "tizenpkcs12passfordsigner"
           tizen cli-config "profiles.path=$HOME/tizen-studio-data/profile/profiles.xml"
+          echo "=== profiles.xml ==="
+          cat "$HOME/tizen-studio-data/profile/profiles.xml"
+          echo "=== keystore files ==="
+          find "$HOME/tizen-studio-data/keystore" 2>/dev/null || echo "no keystore dir"
+          find /tmp -name "*.p12" -o -name "*.pwd" 2>/dev/null
 
       - name: Package WGT
         run: |
