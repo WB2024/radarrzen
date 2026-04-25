@@ -34,7 +34,7 @@ jobs:
             -a "Radarrzen" \
             -p "cipass1234" \
             -c GB \
-            --org "Radarrzen" 2>&1 || true
+            -o "Radarrzen" 2>&1 || true
           # Find the generated p12
           AUTHOR_P12=$(find "$HOME/tizen-studio-data/keystore/author" -name "*.p12" 2>/dev/null | head -1)
           if [[ -z "$AUTHOR_P12" ]]; then
