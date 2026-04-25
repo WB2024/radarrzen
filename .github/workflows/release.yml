@@ -44,18 +44,10 @@ jobs:
             -d "$HOME/tizen-studio/tools/certificate-generator/certificates/distributor/tizen-distributor-signer.p12" \
             -dp "tizenpkcs12passfordsigner"
           tizen cli-config "profiles.path=$HOME/tizen-studio-data/profile/profiles.xml"
-          echo "=== profiles.xml ==="
-          cat "$HOME/tizen-studio-data/profile/profiles.xml"
-          echo "=== keystore files ==="
-          find "$HOME/tizen-studio-data/keystore" 2>/dev/null || echo "no keystore dir"
-          find /tmp -name "*.p12" -o -name "*.pwd" 2>/dev/null
 
       - name: Package WGT
         run: |
-          tizen package --type wgt --sign RadarrzenProfile -- src/ || {
-            echo "=== Tizen CLI log ===" && cat "$HOME/tizen-studio-data/cli/logs/cli.log" | tail -50
-            exit 1
-          }
+          tizen package --type wgt --sign RadarrzenProfile -- src/
           WGT=$(ls src/*.wgt | head -1)
           mv "$WGT" Radarrzen.wgt
           ls -la Radarrzen.wgt
