@@ -26,33 +26,35 @@ jobs:
           echo "$HOME/tizen-studio/tools/ide/bin" >> "$GITHUB_PATH"
           echo "$HOME/tizen-studio/tools" >> "$GITHUB_PATH"
 
-      - name: Create signing certificate
+      - name: Create cert and package WGT
         run: |
           set -e
-          # Generate a fresh author cert in CI (avoids p12 format compatibility issues)
-          tizen certificate \
-            -a "Radarrzen" \
-            -p "cipass1234" \
-            -c GB \
-            -o "Radarrzen" 2>&1 || true
-          # Find the generated p12
+          sudo apt-get install -y gnome-keyring dbus-x11 -qq 2>/dev/null || true
+
+          # Write helper script - runs under a single D-Bus session so keyring persists
+          cat > /tmp/tizen_sign.sh << 'SCRIPT'
+          set -e
+          printf '' | gnome-keyring-daemon --unlock --start --components=secrets 2>/dev/null || true
+
+          tizen certificate -a "Radarrzen" -p "cipass1234" -c GB -o "Radarrzen" 2>&1 || true
           AUTHOR_P12=$(find "$HOME/tizen-studio-data/keystore/author" -name "*.p12" 2>/dev/null | head -1)
-          if [[ -z "$AUTHOR_P12" ]]; then
-            echo "::error::Author cert not generated" && exit 1
-          fi
-          tizen security-profiles add \
-            -n RadarrzenProfile \
-            -a "$AUTHOR_P12" \
-            -p "cipass1234"
+          [[ -z "$AUTHOR_P12" ]] && { echo "::error::Author cert not generated"; exit 1; }
+          echo "Author p12: $AUTHOR_P12"
+
+          tizen security-profiles add -n RadarrzenProfile -a "$AUTHOR_P12" -p "cipass1234"
+          echo "=== profiles.xml ==="
+          cat "$HOME/tizen-studio-data/profile/profiles.xml"
           tizen cli-config "profiles.path=$HOME/tizen-studio-data/profile/profiles.xml"
 
-      - name: Package WGT
-        run: |
           tizen package --type wgt --sign RadarrzenProfile -- src/ || {
-            echo "=== tizen package FAILED - dumping cli.log ==="
-            cat "$HOME/tizen-studio-data/cli/logs/cli.log" 2>/dev/null || echo "(cli.log not found)"
+            echo "=== tizen package FAILED ==="
+            cat "$HOME/tizen-studio-data/cli/logs/cli.log" 2>/dev/null
             exit 1
           }
+          SCRIPT
+          chmod +x /tmp/tizen_sign.sh
+          dbus-run-session -- bash /tmp/tizen_sign.sh
+
           WGT=$(ls src/*.wgt | head -1)
           mv "$WGT" Radarrzen.wgt
           ls -la Radarrzen.wgt
