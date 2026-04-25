@@ -3,7 +3,7 @@ const Store = (() => {
   const STORAGE_KEY = 'radarrzen-config';
 
   const state = {
-    config: null,            // { url, apiKey }
+    config: null,            // { url, apiKey, sawsubeUrl }
     movies: [],              // cached movie list
     moviesLoadedAt: 0,
     qualityProfiles: [],
@@ -21,8 +21,8 @@ const Store = (() => {
     return false;
   }
 
-  function saveConfig(url, apiKey) {
-    state.config = { url: url.replace(/\/$/, ''), apiKey };
+  function saveConfig(url, apiKey, sawsubeUrl) {
+    state.config = { url: url.replace(/\/$/, ''), apiKey, sawsubeUrl: (sawsubeUrl || '').replace(/\/$/, '') };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.config));
   }
 

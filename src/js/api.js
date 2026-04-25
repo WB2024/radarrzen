@@ -1,10 +1,11 @@
 // api.js — Radarr REST API v3 client
 const RadarrAPI = (() => {
-  let base = '', key = '';
+  let base = '', key = '', sawsubeBase = '';
 
-  function configure(url, apiKey) {
+  function configure(url, apiKey, sawsubeUrl) {
     base = url.replace(/\/$/, '') + '/api/v3';
     key = apiKey;
+    sawsubeBase = (sawsubeUrl || '').replace(/\/$/, '');
   }
 
   function rawBase() { return base.replace(/\/api\/v3$/, ''); }
@@ -47,12 +48,24 @@ const RadarrAPI = (() => {
   }
 
   // Fetch a poster via JS (sends X-Api-Key header, avoids ORB/CORS/auth blocking of <img> tags)
-  // Returns a blob: URL or null on failure. Results are cached.
+  // When sawsubeBase is set, proxies through SAWSUBE to avoid CORS on /MediaCover/.
+  // Results are cached.
   const _blobCache = new Map();
   async function fetchPoster(posterSrc) {
     if (_blobCache.has(posterSrc)) return _blobCache.get(posterSrc);
+    let fetchUrl = posterSrc;
+    let fetchOpts = { headers: { 'X-Api-Key': key } };
+    if (sawsubeBase) {
+      // Extract just the path+query after the Radarr host
+      const radarrOrigin = rawBase(); // e.g. http://192.168.1.250:7878
+      const pathPart = posterSrc.startsWith(radarrOrigin)
+        ? posterSrc.slice(radarrOrigin.length)
+        : posterSrc;
+      fetchUrl = `${sawsubeBase}/api/radarr/image?path=${encodeURIComponent(pathPart)}`;
+      fetchOpts = {}; // SAWSUBE handles auth server-side
+    }
     try {
-      const res = await fetch(posterSrc, { headers: { 'X-Api-Key': key } });
+      const res = await fetch(fetchUrl, fetchOpts);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);

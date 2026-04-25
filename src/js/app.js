@@ -52,7 +52,7 @@ const App = (() => {
     if (!ok) { navigate('setup'); return; }
 
     try {
-      RadarrAPI.configure(Store.state.config.url, Store.state.config.apiKey);
+      RadarrAPI.configure(Store.state.config.url, Store.state.config.apiKey, Store.state.config.sawsubeUrl);
       await RadarrAPI.system.status();
       await loadInitialData();
       navigate('library');
