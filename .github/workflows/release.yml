@@ -26,23 +26,24 @@ jobs:
           echo "$HOME/tizen-studio/tools/ide/bin" >> "$GITHUB_PATH"
           echo "$HOME/tizen-studio/tools" >> "$GITHUB_PATH"
 
-      - name: Import signing certificate
-        env:
-          TIZEN_CERT_P12:  ${{ secrets.TIZEN_CERT_P12 }}
-          TIZEN_CERT_PASS: ${{ secrets.TIZEN_CERT_PASS }}
+      - name: Create signing certificate
         run: |
           set -e
-          if [[ -z "$TIZEN_CERT_P12" || -z "$TIZEN_CERT_PASS" ]]; then
-            echo "::error::TIZEN_CERT_P12 and TIZEN_CERT_PASS secrets must be set"
-            exit 1
+          # Generate a fresh author cert in CI (avoids p12 format compatibility issues)
+          tizen certificate \
+            -a "Radarrzen" \
+            -p "cipass1234" \
+            -c GB \
+            --org "Radarrzen" 2>&1 || true
+          # Find the generated p12
+          AUTHOR_P12=$(find "$HOME/tizen-studio-data/keystore/author" -name "*.p12" 2>/dev/null | head -1)
+          if [[ -z "$AUTHOR_P12" ]]; then
+            echo "::error::Author cert not generated" && exit 1
           fi
-          echo "$TIZEN_CERT_P12" | base64 -d > /tmp/radarrzen.p12
           tizen security-profiles add \
             -n RadarrzenProfile \
-            -a /tmp/radarrzen.p12 \
-            -p "$TIZEN_CERT_PASS" \
-            -d "$HOME/tizen-studio/tools/certificate-generator/certificates/distributor/tizen-distributor-signer.p12" \
-            -dp "tizenpkcs12passfordsigner"
+            -a "$AUTHOR_P12" \
+            -p "cipass1234"
           tizen cli-config "profiles.path=$HOME/tizen-studio-data/profile/profiles.xml"
 
       - name: Package WGT
