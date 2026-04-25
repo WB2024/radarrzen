@@ -48,7 +48,11 @@ jobs:
 
       - name: Package WGT
         run: |
-          tizen package --type wgt --sign RadarrzenProfile -- src/
+          tizen package --type wgt --sign RadarrzenProfile -- src/ || {
+            echo "=== tizen package FAILED - dumping cli.log ==="
+            cat "$HOME/tizen-studio-data/cli/logs/cli.log" 2>/dev/null || echo "(cli.log not found)"
+            exit 1
+          }
           WGT=$(ls src/*.wgt | head -1)
           mv "$WGT" Radarrzen.wgt
           ls -la Radarrzen.wgt
