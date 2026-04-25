@@ -40,7 +40,9 @@ jobs:
           tizen security-profiles add \
             -n RadarrzenProfile \
             -a /tmp/radarrzen.p12 \
-            -p "$TIZEN_CERT_PASS"
+            -p "$TIZEN_CERT_PASS" \
+            -d "$HOME/tizen-studio/tools/certificate-generator/certificates/distributor/tizen-distributor-signer.p12" \
+            -dp "tizenpkcs12passfordsigner"
           tizen cli-config "profiles.path=$HOME/tizen-studio-data/profile/profiles.xml"
 
       - name: Package WGT
