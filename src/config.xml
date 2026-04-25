@@ -5,8 +5,8 @@
         version="1.0.0"
         viewmodes="fullscreen">
 
-  <tizen:application id="radarrTV.app"
-                     package="radarrTV"
+  <tizen:application id="RdrrzTV001.Radarrzen"
+                     package="RdrrzTV001"
                      required_version="4.0"
                      launch_mode="single"/>
 
