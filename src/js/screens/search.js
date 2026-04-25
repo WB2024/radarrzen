@@ -73,9 +73,8 @@ const SearchScreen = (() => {
     const posterUrl = pickImage(r, 'poster');
     if (posterUrl) {
       const img = document.createElement('img');
-      img.loading = 'lazy'; img.alt = r.title || '';
-      img.style.display = 'none';
-      img.onload = () => { img.style.display = 'block'; ph.style.display = 'none'; };
+      img.alt = r.title || '';
+      img.onload = () => { ph.style.display = 'none'; };
       img.onerror = () => { img.remove(); };
       // Use proxy for Radarr-hosted URLs; TMDB remote URLs can be loaded directly
       const isRadarrUrl = posterUrl.includes(RadarrAPI.rawBase());
