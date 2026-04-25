@@ -11,7 +11,7 @@ const SearchScreen = (() => {
       '<div class="search-bar">' +
         '<input id="s-input" class="input" type="text" data-nav placeholder="Search for a movie title…">' +
       '</div>' +
-      '<div id="s-status" class="search-status">Type a movie title to search.</div>' +
+      '<div id="s-status" class="search-status">Type a title then press \u25bc to browse results.</div>' +
       '<div id="s-results" class="search-results movie-grid-static" style="display:none;"></div>';
     host.appendChild(wrap);
 

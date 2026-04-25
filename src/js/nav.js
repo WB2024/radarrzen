@@ -35,11 +35,30 @@ const Nav = (() => {
 
   function rect(el) { return el.getBoundingClientRect(); }
 
+  // Natively-focusable tags that work with .focus() without tabIndex.
+  const NATIVE_FOCUS_TAGS = { INPUT: 1, TEXTAREA: 1, SELECT: 1, BUTTON: 1, A: 1 };
+
+  // Text-input types where LEFT/RIGHT move the cursor (Jellyfin model).
+  const TEXT_INPUT_TYPES = { '': 1, text: 1, search: 1, email: 1, tel: 1, url: 1, password: 1, number: 1 };
+
+  function isTextInput(el) {
+    if (!el) return false;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName === 'INPUT') return !!TEXT_INPUT_TYPES[(el.type || '').toLowerCase()];
+    return false;
+  }
+
   function focus(el) {
     if (!el) return;
     if (focusEl && focusEl !== el) focusEl.classList.remove(FOCUS_CLASS);
     focusEl = el;
     el.classList.add(FOCUS_CLASS);
+    // Non-native elements (divs, spans…) need tabIndex=0 for .focus() to
+    // actually transfer browser focus.  Without this document.activeElement
+    // stays on the previous element and keys continue going there.
+    if (!NATIVE_FOCUS_TAGS[el.tagName] && !(el.tabIndex >= 0)) {
+      el.tabIndex = 0;
+    }
     try {
       const r = el.getBoundingClientRect();
       if (r.top < 0 || r.bottom > window.innerHeight ||
@@ -90,18 +109,15 @@ const Nav = (() => {
     const code = e.keyCode;
     const map = { 38: 'up', 40: 'down', 37: 'left', 39: 'right' };
     if (map[code]) {
-      // Tizen TV: arrow keys ALWAYS do spatial navigation, even when an
-      // <input> is focused.  The on-screen IME owns text editing entirely;
-      // letting LEFT/RIGHT move the caret would trap users in the input
-      // (every press would step through characters before escaping).
-      e.preventDefault();
-      e.stopPropagation();
-      // Make sure the input doesn't keep its caret blinking off-screen and
-      // doesn't capture subsequent character keys when we navigate away.
-      const t = e.target;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) {
-        try { t.blur(); } catch (e) {}
+      // Jellyfin model:
+      //   LEFT (37) / RIGHT (39) — pass through if a text input is focused so
+      //     the cursor can move.  The user presses DOWN to leave the input.
+      //   UP (38) / DOWN (40)   — always spatial-navigate, even from inputs.
+      // This is exactly how jellyfin-web/keyboardNavigation.js works.
+      if ((code === 37 || code === 39) && isTextInput(e.target)) {
+        return; // let browser handle cursor movement
       }
+      e.preventDefault();
       move(map[code]);
       return;
     }
