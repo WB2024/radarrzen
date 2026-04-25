@@ -1,0 +1,17 @@
+# Build outputs
+*.wgt
+src/*.wgt
+
+# Editor / OS junk
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Tizen Studio metadata
+.tproject
+.project
+.settings/
+.sign/
+author-signature.xml
+signature1.xml
