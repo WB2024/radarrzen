@@ -244,7 +244,9 @@ const DetailScreen = (() => {
           warn.title = rejectTip;
           warn.textContent = '⚠ Rejected';
           actCell.appendChild(warn);
-        } else {
+        }
+
+        {
           const grabBtn = document.createElement('button');
           grabBtn.className = 'btn isr-grab-btn';
           grabBtn.dataset.nav = '';

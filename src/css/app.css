@@ -340,4 +340,4 @@ h3 { font-size: 22px; font-weight: 500; }
 .isr-grab-btn:disabled { opacity: 0.5; cursor: default; }
 .isr-grab-btn.isr-grabbed { background: var(--ok); border-color: var(--ok); }
 .isr-grab-btn.nav-focused { background: #fff; color: var(--accent); border-color: #fff; }
-.isr-warn { font-size: 13px; color: var(--warn); }
+.isr-warn { font-size: 13px; color: var(--warn); display: block; margin-bottom: 4px; }
