@@ -18,6 +18,7 @@ const LibraryScreen = (() => {
   }
 
   let openDropdown = null;
+  let posterObserver = null;  // IntersectionObserver for lazy poster loading
 
   function render(host) {
     host.innerHTML = '';
@@ -122,32 +123,41 @@ const LibraryScreen = (() => {
     const list = Store.state.movies.filter(filt.match).sort(sort.cmp);
     document.getElementById('movie-count').textContent = list.length + ' movies';
 
+    // Disconnect any previous observer before clearing the grid
+    if (posterObserver) { posterObserver.disconnect(); }
+
     grid.innerHTML = '';
     if (!list.length) {
       grid.innerHTML = '<div class="empty-state"><h2>No movies match</h2><p>Try a different filter.</p></div>';
       return;
     }
 
-    // Render in batches for performance
+    // IntersectionObserver: only load poster images when the card is near the viewport.
+    // rootMargin '400px' means images start loading 400px before they scroll into view.
+    posterObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && entry.target._loadPoster) {
+          entry.target._loadPoster();
+          entry.target._loadPoster = null;
+          posterObserver.unobserve(entry.target);
+        }
+      });
+    }, { root: grid, rootMargin: '400px 0px' });
+
+    // Render DOM in batches so the first screenful appears immediately.
     const BATCH = 40;
     let i = 0;
-    let firstBatch = true;
     function chunk() {
+      const batch = [];
       const frag = document.createDocumentFragment();
       for (let n = 0; n < BATCH && i < list.length; n++, i++) {
-        frag.appendChild(card(list[i]));
+        const c = card(list[i]);
+        frag.appendChild(c);
+        batch.push(c);
       }
       grid.appendChild(frag);
-      if (firstBatch) {
-        firstBatch = false;
-        requestAnimationFrame(() => {
-          const firstCard = grid.querySelector('.movie-card');
-          const firstWrap = firstCard && firstCard.querySelector('.poster-wrap');
-          console.log('[Radarrzen] Card dimensions:', firstCard
-            ? `card=${firstCard.offsetWidth}x${firstCard.offsetHeight} wrap=${firstWrap ? firstWrap.offsetWidth + 'x' + firstWrap.offsetHeight : 'N/A'}`
-            : 'no card found');
-        });
-      }
+      // Observe after appending to DOM so IntersectionObserver can measure positions
+      batch.forEach(c => posterObserver.observe(c));
       if (i < list.length) requestAnimationFrame(chunk);
     }
     chunk();
@@ -168,24 +178,25 @@ const LibraryScreen = (() => {
 
     const img = document.createElement('img');
     img.alt = m.title || '';
-    img.onload = () => {
-      img.style.display = 'block';
-      ph.style.display = 'none';
-      console.debug('[Radarrzen] ✓ Poster loaded:', m.title);
-    };
-    img.onerror = () => {
-      console.warn('[Radarrzen] ✗ Poster FAILED:', m.title, img.src);
-      img.style.display = 'none';
-    };
-    const posterSrc = RadarrAPI.posterUrlFromMovie(m) || RadarrAPI.posterUrl(m.id);
-    RadarrAPI.fetchPoster(posterSrc).then(blobUrl => {
-      if (blobUrl) {
-        img.src = blobUrl;
-      } else {
-        ph.textContent = m.title || '';
-      }
-    });
+    img.style.display = 'none';
+    img.onload = () => { img.style.display = 'block'; ph.style.display = 'none'; };
+    img.onerror = () => { img.style.display = 'none'; };
     wrap.appendChild(img);
+
+    // Deferred poster load — called by IntersectionObserver when card is near viewport.
+    // Prefer posterImgSrc() which returns a direct proxy URL the browser can HTTP-cache.
+    // Falls back to fetchPoster() blob path when SAWSUBE is not configured.
+    el._loadPoster = () => {
+      const directUrl = RadarrAPI.posterImgSrc(m, 200);
+      if (directUrl) {
+        img.src = directUrl;
+      } else {
+        const posterSrc = RadarrAPI.posterUrlFromMovie(m) || RadarrAPI.posterUrl(m.id);
+        RadarrAPI.fetchPoster(posterSrc).then(url => {
+          if (url) img.src = url;
+        });
+      }
+    };
 
     // Status badges
     const badges = document.createElement('div');
@@ -210,10 +221,7 @@ const LibraryScreen = (() => {
     title.textContent = m.year ? `${m.title} (${m.year})` : m.title;
     el.appendChild(title);
 
-    el.addEventListener('click', () => {
-      console.log('[Radarrzen] Card clicked:', m.title, m.id);
-      App.navigate('detail', { movieId: m.id });
-    });
+    el.addEventListener('click', () => App.navigate('detail', { movieId: m.id }));
 
     return el;
   }

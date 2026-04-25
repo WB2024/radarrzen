@@ -42,30 +42,37 @@ const RadarrAPI = (() => {
   }
 
   // Fallback: build poster URL directly by movie ID (correct Radarr v3 path)
-  function posterUrl(movieId, width = 250) {
-    return `${rawBase()}/MediaCover/${movieId}/poster.jpg?apikey=${encodeURIComponent(key)}` +
-           (width ? `&w=${width}` : '');
+  function posterUrl(movieId) {
+    return `${rawBase()}/MediaCover/${movieId}/poster.jpg?apikey=${encodeURIComponent(key)}`;
   }
 
-  // Fetch a poster via JS (sends X-Api-Key header, avoids ORB/CORS/auth blocking of <img> tags)
-  // When sawsubeBase is set, proxies through SAWSUBE to avoid CORS on /MediaCover/.
-  // Results are cached.
+  // Returns a direct <img src> URL via the SAWSUBE proxy with server-side resize + 30-day cache.
+  // Since SAWSUBE has CORS allow_origins=*, the browser can use this directly without blob URLs.
+  // Only returns a URL when sawsubeBase is configured.
+  function posterImgSrc(movie, width = 200) {
+    if (!sawsubeBase) return null;
+    const raw = posterUrlFromMovie(movie) || posterUrl(movie.id);
+    const radarrOrigin = rawBase();
+    const pathPart = raw.startsWith(radarrOrigin) ? raw.slice(radarrOrigin.length) : raw;
+    return `${sawsubeBase}/api/radarr/image?path=${encodeURIComponent(pathPart)}&w=${width}`;
+  }
+
+  // Legacy fetch-to-blob path — used only when sawsubeBase is not configured.
+  // With SAWSUBE, prefer posterImgSrc() and set img.src directly (browser handles HTTP caching).
   const _blobCache = new Map();
   async function fetchPoster(posterSrc) {
-    if (_blobCache.has(posterSrc)) return _blobCache.get(posterSrc);
-    let fetchUrl = posterSrc;
-    let fetchOpts = { headers: { 'X-Api-Key': key } };
     if (sawsubeBase) {
-      // Extract just the path+query after the Radarr host
-      const radarrOrigin = rawBase(); // e.g. http://192.168.1.250:7878
+      // Shouldn't be called when SAWSUBE is set — use posterImgSrc() instead.
+      // But if called, return a direct URL so the browser can cache it.
+      const radarrOrigin = rawBase();
       const pathPart = posterSrc.startsWith(radarrOrigin)
         ? posterSrc.slice(radarrOrigin.length)
         : posterSrc;
-      fetchUrl = `${sawsubeBase}/api/radarr/image?path=${encodeURIComponent(pathPart)}`;
-      fetchOpts = {}; // SAWSUBE handles auth server-side
+      return `${sawsubeBase}/api/radarr/image?path=${encodeURIComponent(pathPart)}&w=200`;
     }
+    if (_blobCache.has(posterSrc)) return _blobCache.get(posterSrc);
     try {
-      const res = await fetch(fetchUrl, fetchOpts);
+      const res = await fetch(posterSrc, { headers: { 'X-Api-Key': key } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
@@ -135,6 +142,6 @@ const RadarrAPI = (() => {
   return {
     configure, testConnection,
     movies, queue, release, lookup, quality, rootFolders, system, command,
-    posterUrl, posterUrlFromMovie, fetchPoster, rawBase, apiKey,
+    posterUrl, posterUrlFromMovie, posterImgSrc, fetchPoster, rawBase, apiKey,
   };
 })();
