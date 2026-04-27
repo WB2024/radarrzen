@@ -54,31 +54,23 @@ const RadarrAPI = (() => {
     return rawBase() + '/MediaCover/' + movieId + '/poster.jpg?apikey=' + encodeURIComponent(key);
   }
 
-  // Resized poster via SAWSUBE proxy. Browser HTTP-caches (Cache-Control 30d).
-  function posterImgSrc(movie, width) {
-    const w = width || 200;
-    if (!sawsubeBase) {
-      const raw = posterUrlFromMovie(movie) || posterUrl(movie.id);
-      return raw + (raw.indexOf('apikey=') >= 0 ? '' : (raw.indexOf('?') >= 0 ? '&' : '?') + 'apikey=' + encodeURIComponent(key));
-    }
+  // Direct-from-Radarr poster. No SAWSUBE dependency — images served straight
+  // from the Radarr host. Library movies use /MediaCover (already on-disk on
+  // the server, fast). Browser HTTP-cache handles repeat loads.
+  // width param kept for API compatibility but unused (no resize proxy).
+  function posterImgSrc(movie, _width) {
     const raw = posterUrlFromMovie(movie) || posterUrl(movie.id);
-    const radarrOrigin = rawBase();
-    if (raw.indexOf(radarrOrigin) === 0) {
-      // Radarr-hosted image — use ?path= so the proxy attaches the API key.
-      const pathPart = raw.slice(radarrOrigin.length);
-      return sawsubeBase + '/api/radarr/image?path=' + encodeURIComponent(pathPart) + '&w=' + w;
+    // Append apikey for Radarr-hosted URLs that don't already carry it.
+    if (raw.indexOf(rawBase()) === 0 && raw.indexOf('apikey=') < 0) {
+      return raw + (raw.indexOf('?') >= 0 ? '&' : '?') + 'apikey=' + encodeURIComponent(key);
     }
-    // External URL (TMDB etc., common for just-added movies before Radarr
-    // caches the cover locally) — use the whitelisted ?url= proxy.
-    return sawsubeBase + '/api/radarr/image?url=' + encodeURIComponent(raw) + '&w=' + w;
+    return raw;
   }
 
-  // Proxy any remote image (e.g. TMDB) for resize + cache.
-  function remoteImgSrc(url, width) {
-    if (!url) return null;
-    if (!sawsubeBase) return url;
-    const w = width || 200;
-    return sawsubeBase + '/api/radarr/image?url=' + encodeURIComponent(url) + '&w=' + w;
+  // External image (TMDB etc.) — return URL directly. Browser fetches it.
+  // width param kept for API compatibility.
+  function remoteImgSrc(url, _width) {
+    return url || null;
   }
 
   const movies = {
