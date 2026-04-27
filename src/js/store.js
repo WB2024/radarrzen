@@ -23,8 +23,8 @@ const Store = (() => {
     const imgs = m.images;
     if (imgs) {
       for (let i = 0; i < imgs.length; i++) {
-        if (imgs[i].coverType === 'poster' && imgs[i].url) {
-          posterPath = imgs[i].url;
+        if (imgs[i].coverType === 'poster') {
+          posterPath = imgs[i].remoteUrl || imgs[i].url || null;
           break;
         }
       }

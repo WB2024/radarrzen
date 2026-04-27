@@ -42,8 +42,9 @@ const RadarrAPI = (() => {
     const imgs = movie.images;
     if (!imgs) return null;
     for (let i = 0; i < imgs.length; i++) {
-      if (imgs[i].coverType === 'poster' && imgs[i].url) {
-        const u = imgs[i].url;
+      if (imgs[i].coverType === 'poster') {
+        const u = imgs[i].remoteUrl || imgs[i].url;
+        if (!u) continue;
         return u.indexOf('http') === 0 ? u : rawBase() + u;
       }
     }
