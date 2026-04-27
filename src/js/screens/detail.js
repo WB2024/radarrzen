@@ -24,7 +24,83 @@ const DetailScreen = (() => {
     RadarrAPI.movies.get(id).then(full => {
       // Merge full details for richer view
       enrichDetail(full || slim);
-    }).catch(() => {/* ignore — slim view is fine */});
+      loadSimilar(full || slim);
+    }).catch(() => { loadSimilar(slim); });
+  }
+
+  function loadSimilar(m) {
+    const host = document.getElementById('d-similar');
+    if (!host || !m || !m.tmdbId) return;
+    if (typeof TMDB === 'undefined' || !TMDB.hasKey()) return;
+    TMDB.movies.recommendations(m.tmdbId).then(data => {
+      let list = (data && data.results) || [];
+      if (!list.length) {
+        return TMDB.movies.similar(m.tmdbId).then(d2 => (d2 && d2.results) || []);
+      }
+      return list;
+    }).then(list => {
+      list = (list || []).slice(0, 12);
+      if (!list.length) { host.style.display = 'none'; return; }
+      renderSimilarRail(host, list);
+    }).catch(() => { host.style.display = 'none'; });
+  }
+
+  function renderSimilarRail(host, results) {
+    host.style.display = 'block';
+    host.innerHTML = '<h2 style="margin:24px 32px 12px;">You might also like</h2>' +
+                     '<div class="similar-rail" id="d-rail"></div>';
+    const rail = document.getElementById('d-rail');
+    results.forEach(r => rail.appendChild(similarCard(r)));
+    Nav.invalidateCache();
+  }
+
+  function similarCard(r) {
+    const el = document.createElement('div');
+    el.className = 'rail-card';
+    el.dataset.nav = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'poster-wrap';
+    wrap.style.height = '300px';
+    const ph = document.createElement('div');
+    ph.className = 'poster-placeholder';
+    ph.textContent = r.title || '';
+    wrap.appendChild(ph);
+    const purl = TMDB.posterUrl(r.poster_path);
+    if (purl) {
+      const img = document.createElement('img');
+      img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
+      img.style.opacity = '0';
+      img.onload = () => { img.style.opacity = '1'; ph.style.display = 'none'; };
+      img.onerror = () => { img.remove(); };
+      img.src = purl;
+      wrap.appendChild(img);
+    }
+    const inLib = Store.state.movies.find(x => x.tmdbId === r.id);
+    if (inLib) {
+      const b = document.createElement('div');
+      b.className = 'badges';
+      b.innerHTML = '<div class="badge ok">In Library</div>';
+      wrap.appendChild(b);
+    }
+    el.appendChild(wrap);
+    const t = document.createElement('div');
+    t.className = 'title';
+    const yr = (r.release_date || '').slice(0, 4);
+    t.textContent = yr ? (r.title + ' (' + yr + ')') : r.title;
+    el.appendChild(t);
+    el.addEventListener('click', () => {
+      const found = Store.state.movies.find(x => x.tmdbId === r.id);
+      if (found) { App.navigate('detail', { movieId: found.id }); return; }
+      // Convert TMDB result -> Radarr lookup result, then open add overlay.
+      RadarrAPI.lookup.tmdb(r.id).then(lr => {
+        const result = Array.isArray(lr) ? lr[0] : lr;
+        if (!result) { Toast.show('Movie not found in Radarr lookup', 'error'); return; }
+        if (typeof SearchScreen !== 'undefined' && SearchScreen.openAddOverlay) {
+          SearchScreen.openAddOverlay(result);
+        } else { Toast.show('Add overlay not available', 'error'); }
+      }).catch(e => Toast.show('Lookup failed: ' + e.message, 'error'));
+    });
+    return el;
   }
 
   function renderShell(host, m) {
@@ -54,7 +130,8 @@ const DetailScreen = (() => {
             '<button class="btn" data-nav id="d-back">← Back</button>' +
           '</div>' +
         '</div>' +
-      '</div>';
+      '</div>' +
+      '<section id="d-similar" class="similar-section" style="display:none;"></section>';
     host.appendChild(wrap);
 
     // Poster — direct URL via SAWSUBE proxy (HTTP-cached, no blob round-trip)

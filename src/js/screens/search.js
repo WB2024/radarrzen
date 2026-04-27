@@ -240,5 +240,5 @@ const SearchScreen = (() => {
     ));
   }
 
-  return { render };
+  return { render: render, openAddOverlay: openAddOverlay };
 })();

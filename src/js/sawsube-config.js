@@ -11,4 +11,8 @@
 //     apiKey: 'your-key-here',
 //     sawsubeUrl: 'http://localhost:8000'
 //   }));
+//
+// TMDB_API_KEY is replaced at build time by build.sh (sed) when TMDB_API_KEY
+// env var is set. Falls back to localStorage('tmdb-api-key') if placeholder.
+var TMDB_API_KEY = '__TMDB_API_KEY__';
 (function(){})();
