@@ -88,6 +88,10 @@ const App = (() => {
       return;
     }
     const cur = Store.state.currentScreen;
+    if (cur === 'setup' && Store.state.config) {
+      navigate('library');
+      return;
+    }
     if (cur === 'detail' || cur === 'search' || cur === 'queue') {
       navigate('library');
       return;
